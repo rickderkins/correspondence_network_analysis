@@ -2,51 +2,69 @@ import pandas as pd
 import numpy as np
 import sys
 import os
-import logging  # <--- Importiert das Logging-Modul
+import logging
+from datetime import datetime  # <--- Hinzugefügt für das Datum
 
 # --- 1. Konfiguration ---
 # Der Ordner, in dem Ihre Dateien liegen
 folder_path = r'D:\OneDrive - Universität Heidelberg\Studium\Veranstaltungen\19-WiSe25-HIS-MA Masterarbeit\Quellen\Daten'
 
-# Dateinamen
-file_korrespondenz_name = '251108_Gesamtkorrespondenz.csv'
-file_personen_name = '251108_Personenliste.csv'
-file_output_name = '251109_Gesamtkorrespondenz.csv'
-log_file_name = 'verarbeitung.log'  # <--- Name für die Log-Datei
+# Name für die Log-Datei
+log_file_name = 'verarbeitung.log'
+log_file_path = os.path.join(folder_path, log_file_name)
 
-# Komplette Pfade erstellen
-file_korrespondenz = os.path.join(folder_path, file_korrespondenz_name)
-file_personen = os.path.join(folder_path, file_personen_name)
-file_output = os.path.join(folder_path, file_output_name)
-log_file_path = os.path.join(folder_path, log_file_name)  # <--- Pfad zur Log-Datei
-
-# --- NEU: Logging Konfiguration ---
-# Wir konfigurieren das Logging, bevor wir etwas anderes tun.
+# --- Logging Konfiguration ---
+# (Unverändert)
 logging.basicConfig(
-    level=logging.INFO,  # Zeige alle Logs ab der Stufe INFO (also INFO, WARNING, ERROR, CRITICAL)
-    format='%(asctime)s [%(levelname)s] - %(message)s',  # Format: Zeitstempel [Level] - Nachricht
-    datefmt='%Y-%m-%d %H:%M:%S',  # Format für den Zeitstempel
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
     handlers=[
-        # Ein Handler, der die Logs in eine Datei schreibt (mit UTF-8 für Umlaute)
         logging.FileHandler(log_file_path, encoding='utf-8'),
-        # Ein Handler, der die Logs in der Konsole/Terminal anzeigt
         logging.StreamHandler(sys.stdout)
     ]
 )
-# --- Ende Logging Konfiguration ---
+
+# --- Dateinamen abfragen ---
+print("\n--- Skript zur Datenanreicherung ---")
+print("Bitte geben Sie die Namen der Input-Dateien an.")
+print(f"Die Dateien werden im Ordner '{folder_path}' gesucht.")
+
+file_korrespondenz_name = input("1. Name der Korrespondenz-Datei (z.B. 251108_Gesamtkorrespondenz.csv): ")
+file_personen_name = input("2. Name der Personenliste-Datei (z.B. 251108_Personenliste.csv): ")
+
+# --- NEU: Ausgabedatei automatisch generieren ---
+# Hole das heutige Datum
+heute = datetime.now()
+# Formatiere das Datum als YYMMDD (z.B. 251109)
+datum_string = heute.strftime("%y%m%d")
+# Erstelle den Dateinamen
+file_output_name = f"{datum_string}_Gesamtkorrespondenz.csv"
+
+print(f"\nDer Name der Ausgabedatei wird automatisch gesetzt auf: '{file_output_name}'")
+print("----------------------------------------------------------")
+
+# Komplette Pfade basierend auf den Eingaben erstellen
+file_korrespondenz = os.path.join(folder_path, file_korrespondenz_name)
+file_personen = os.path.join(folder_path, file_personen_name)
+file_output = os.path.join(folder_path, file_output_name)
 
 # Der Name, der ignoriert werden soll
 key_person = "Schoetensack, Otto"
 
-logging.info("--- Skript zur Datenanreicherung gestartet ---")
+# --- Start der Verarbeitung (Logging) ---
+logging.info("--- Skript gestartet ---")
 logging.info(f"Lese-Ordner: {folder_path}")
+logging.info(f"Lade Korrespondenzdatei: '{file_korrespondenz_name}'")
+logging.info(f"Lade Personendatei: '{file_personen_name}'")
+logging.info(f"Zieldatei wird automatisch generiert: '{file_output_name}'")
 
 try:
     # --- 2. Daten laden ---
-    logging.info(f"Lade Korrespondenzdatei: '{file_korrespondenz_name}'...")
+    logging.info(f"Lade '{file_korrespondenz_name}'...")
     df_korr = pd.read_csv(file_korrespondenz, dtype=str)
 
-    logging.info(f"Lade Personendatei: '{file_personen_name}'...")
+    logging.info(f"Lade '{file_personen_name}'...")
     df_person = pd.read_csv(file_personen, dtype=str)
 
     logging.info("Dateien erfolgreich geladen.")
@@ -71,7 +89,6 @@ try:
     df_korr['TAG-FUNK'] = df_korr['partner_name'].map(funk_map)
     df_korr['TAG-FACH'] = df_korr['partner_name'].map(fach_map)
 
-    # Fülle NaN-Werte, falls ein Partner nicht in der Personenliste gefunden wurde
     df_korr['TAG-FUNK'] = df_korr['TAG-FUNK'].fillna('')
     df_korr['TAG-FACH'] = df_korr['TAG-FACH'].fillna('')
     logging.info("Datenanreicherung abgeschlossen.")
@@ -93,7 +110,7 @@ try:
 except FileNotFoundError as e:
     logging.error("--- FEHLER: Datei nicht gefunden ---")
     logging.error(f"Konnte die Datei '{e.filename}' nicht finden.")
-    logging.error("Bitte überprüfen Sie den 'folder_path' und die Dateinamen im Skript.")
+    logging.error("Bitte überprüfen Sie die Schreibweise und stellen Sie sicher, dass die Datei im Ordner existiert.")
 
 except KeyError as e:
     logging.error("--- FEHLER: Spalte nicht gefunden ---")
@@ -101,7 +118,6 @@ except KeyError as e:
     logging.error("Bitte überprüfen Sie die Spaltennamen in Ihren Dateien (Groß-/Kleinschreibung beachten!).")
 
 except Exception as e:
-    # logging.exception() speichert den Fehler UND den kompletten "Traceback" (die Fehlerhistorie)
     logging.exception("--- Ein unerwarteter Fehler ist aufgetreten ---")
 
 logging.info("--- Skript beendet ---")
