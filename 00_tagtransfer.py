@@ -1,3 +1,5 @@
+# dieses Skript dient der Übertragung der Tags zu Funktion und Fach von der Personen- in die Korrepondenztabelle
+
 import pandas as pd
 import numpy as np
 import sys
