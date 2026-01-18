@@ -1,23 +1,39 @@
 import csv
 import os
+from datetime import datetime
 from docx import Document
 from docx.oxml import OxmlElement
 from copy import deepcopy
 
 
 def erstelle_brief_anhang():
-    # Absolute Pfade
-    input_csv = r"D:\heiBOX\Seafile\Masterarbeit_Ablage\daten_heibox\260115_NODEGOAT_Briefe.csv"
-    template_path = r"D:\heiBOX\Seafile\Masterarbeit_Ablage\daten_heibox\template_appendix_letter.docx"
-    output_docx = r"D:\heiBOX\Seafile\Masterarbeit_Ablage\daten_heibox\Anhang_Test.docx"
+    # 1. Abfrage des Input-Pfades über die Konsole
+    print("--- Brief-Anhang Generator ---")
+    input_csv = input("Bitte den Pfad zur CSV-Datei eingeben: ").strip().strip('"')
 
-    if not os.path.exists(template_path) or not os.path.exists(input_csv):
-        print("Fehler: Pfade prüfen!")
+    # Feste Pfade für Vorlage und Output-Ordner
+    template_path = r"D:\heiBOX\Seafile\Masterarbeit_Ablage\anhang_heibox\template_appendix_letter.docx"
+    output_folder = r"D:\heiBOX\Seafile\Masterarbeit_Ablage\anhang_heibox"
+
+    # Zeitstempel für den Dateinamen generieren (YYMMDD_HHMM)
+    zeitstempel = datetime.now().strftime("%y%m%d_%H%M")
+    output_filename = f"{zeitstempel}_Anhang_Briefe.docx"
+    output_docx = os.path.join(output_folder, output_filename)
+
+    # Validierung der Pfade
+    if not os.path.exists(input_csv):
+        print(f"Fehler: Die angegebene CSV-Datei wurde nicht gefunden: {input_csv}")
         return
+    if not os.path.exists(template_path):
+        print(f"Fehler: Vorlage nicht gefunden unter: {template_path}")
+        return
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
 
+    # Dokument laden
     doc = Document(template_path)
 
-    # Vorlage extrahieren
+    # Vorlage extrahieren (Erster Absatz und erste Tabelle)
     template_para = doc.paragraphs[0]
     template_table = doc.tables[0]
 
@@ -32,6 +48,7 @@ def erstelle_brief_anhang():
 
     try:
         with open(input_csv, mode='r', encoding='utf-8-sig') as csvfile:
+            # Automatisches Erkennen des Trennzeichens
             sample = csvfile.read(4096)
             csvfile.seek(0)
             dialect = csv.Sniffer().sniff(sample)
@@ -41,20 +58,19 @@ def erstelle_brief_anhang():
             template_para._element.getparent().remove(template_para._element)
             template_table._element.getparent().remove(template_table._element)
 
-            # Zähler initialisieren
+            brief_zaehler = 0
             for i, row in enumerate(reader, start=1):
-                # 1. TITEL-ABSATZ einfügen
+                # --- A: TITEL-ABSATZ ---
                 new_p_element = deepcopy(template_para_xml)
                 doc._element.body.append(new_p_element)
 
                 aktiver_absatz = doc.paragraphs[-1]
                 if "BRIEF-TITEL" in aktiver_absatz.text:
                     wert = str(row.get("BRIEF-TITEL", "")).strip()
-                    # Nummerierung hinzufügen: "1. Titel-Inhalt"
                     neuer_text = f"{i}. {wert}"
                     aktiver_absatz.text = aktiver_absatz.text.replace("BRIEF-TITEL", neuer_text)
 
-                # 2. TABELLE einfügen
+                # --- B: TABELLE ---
                 new_tbl_element = deepcopy(template_table_xml)
                 doc._element.body.append(new_tbl_element)
 
@@ -66,11 +82,14 @@ def erstelle_brief_anhang():
                                 wert = str(row.get(spalte, "")).strip()
                                 zelle.text = zelle.text.replace(spalte, wert)
 
-                # 3. LEERZEILE einfügen
+                # --- C: LEERZEILE ---
                 doc._element.body.append(OxmlElement('w:p'))
+                brief_zaehler = i
 
+        # Speichern
         doc.save(output_docx)
-        print(f"Erfolg! {i} Briefe wurden nummeriert und in '{output_docx}' gespeichert.")
+        print(f"\nErfolg! {brief_zaehler} Briefe wurden verarbeitet.")
+        print(f"Datei erstellt: {output_docx}")
 
     except Exception as e:
         print(f"Ein Fehler ist aufgetreten: {e}")

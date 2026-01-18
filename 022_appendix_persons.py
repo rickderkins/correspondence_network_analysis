@@ -1,36 +1,32 @@
 import csv
 import os
-from datetime import datetime
 from docx import Document
 from docx.oxml import OxmlElement
 from copy import deepcopy
+from datetime import datetime
 
 
-def erstelle_brief_anhang():
-    # 1. Pfade definieren
-    input_csv = r"D:\heiBOX\Seafile\Masterarbeit_Ablage\daten_heibox\260117_BRIEFE.csv"
-    template_path = r"D:\heiBOX\Seafile\Masterarbeit_Ablage\anhang_heibox\template_appendix_letter.docx"
-    output_folder = r"D:\heiBOX\Seafile\Masterarbeit_Ablage\anhang_heibox"
-
-    # Zeitstempel für den Dateinamen generieren (YYMMDD_HHMM)
+def erstelle_personen_anhang():
+    # 1. Zeitstempel generieren (Format: YYMMDD_HHMM)
     zeitstempel = datetime.now().strftime("%y%m%d_%H%M")
-    output_filename = f"{zeitstempel}_Anhang_Briefe.docx"
-    output_docx = os.path.join(output_folder, output_filename)
+    dateiname = f"{zeitstempel}_Anhang_Personen.docx"
 
-    # Validierung der Pfade
-    if not os.path.exists(template_path):
-        print(f"Fehler: Vorlage nicht gefunden: {template_path}")
-        return
-    if not os.path.exists(input_csv):
-        print(f"Fehler: CSV nicht gefunden: {input_csv}")
-        return
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
+    # 2. Pfade definieren
+    input_csv = r"D:\heiBOX\Seafile\Masterarbeit_Ablage\daten_heibox\260117_PERSONEN.csv"
+    template_path = r"D:\heiBOX\Seafile\Masterarbeit_Ablage\anhang_heibox\template_appendix_person.docx"
+    output_dir = r"D:\heiBOX\Seafile\Masterarbeit_Ablage\anhang_heibox"
+    output_docx = os.path.join(output_dir, dateiname)
 
-    # Dokument laden
+    # Sicherstellen, dass der Output-Ordner existiert
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    if not os.path.exists(template_path) or not os.path.exists(input_csv):
+        print("Fehler: Pfade prüfen!")
+        return
+
+    # 3. Dokument laden und Vorlage extrahieren
     doc = Document(template_path)
-
-    # Vorlage extrahieren (Titel-Absatz und Tabelle)
     template_para = doc.paragraphs[0]
     template_table = doc.tables[0]
 
@@ -38,9 +34,9 @@ def erstelle_brief_anhang():
     template_table_xml = deepcopy(template_table._element)
 
     spalten_liste = [
-        "BRIEF-TITEL", "ABS-VORNAME", "ABS-NACHNAME", "ABS-ORT",
-        "EMP-VORNAME", "EMP-NACHNAME", "EMP-ORT",
-        "DATUM", "ARCHIV", "TRANSK", "TAG-FUNK", "TAG-THEMA"
+        "KORR-NACHNAME", "KORR-VORNAME", "KORR-BERU",
+        "TAG-TAET", "TAG-FACH", "TAG-INST",
+        "REF-1", "REF-2", "REF-3", "REF-4"
     ]
 
     try:
@@ -50,27 +46,27 @@ def erstelle_brief_anhang():
             dialect = csv.Sniffer().sniff(sample)
             reader = csv.DictReader(csvfile, dialect=dialect)
 
-            # Vorlage im Dokument löschen, um sauber neu aufzubauen
+            # Vorlage im Dokument löschen
             template_para._element.getparent().remove(template_para._element)
             template_table._element.getparent().remove(template_table._element)
 
-            brief_zaehler = 0
+            i = 0
             for i, row in enumerate(reader, start=1):
-                # --- A: TITEL-ABSATZ ---
+                # A) Absatz einfügen & Platzhalter ersetzen
                 new_p_element = deepcopy(template_para_xml)
                 doc._element.body.append(new_p_element)
-
                 aktiver_absatz = doc.paragraphs[-1]
-                if "BRIEF-TITEL" in aktiver_absatz.text:
-                    wert = str(row.get("BRIEF-TITEL", "")).strip()
-                    neuer_text = f"{i}. {wert}"
-                    aktiver_absatz.text = aktiver_absatz.text.replace("BRIEF-TITEL", neuer_text)
 
-                # --- B: TABELLE ---
+                for spalte in spalten_liste:
+                    if spalte in aktiver_absatz.text:
+                        wert = str(row.get(spalte, "")).strip()
+                        aktiver_absatz.text = aktiver_absatz.text.replace(spalte, wert)
+
+                # B) Tabelle einfügen & Platzhalter ersetzen
                 new_tbl_element = deepcopy(template_table_xml)
                 doc._element.body.append(new_tbl_element)
-
                 aktuelle_tabelle = doc.tables[-1]
+
                 for zeile in aktuelle_tabelle.rows:
                     for zelle in zeile.cells:
                         for spalte in spalten_liste:
@@ -78,18 +74,17 @@ def erstelle_brief_anhang():
                                 wert = str(row.get(spalte, "")).strip()
                                 zelle.text = zelle.text.replace(spalte, wert)
 
-                # --- C: LEERZEILE ---
+                # C) Leerzeile einfügen
                 doc._element.body.append(OxmlElement('w:p'))
-                brief_zaehler = i
 
-        # Speichern des Dokuments
+        # 4. Speichern mit dem neuen Dateinamen
         doc.save(output_docx)
-        print(f"Erfolg! {brief_zaehler} Briefe verarbeitet.")
-        print(f"Datei gespeichert unter: {output_docx}")
+        print(f"Erfolg! {i} Personen wurden verarbeitet.")
+        print(f"Datei gespeichert als: {dateiname}")
 
     except Exception as e:
         print(f"Ein Fehler ist aufgetreten: {e}")
 
 
 if __name__ == "__main__":
-    erstelle_brief_anhang()
+    erstelle_personen_anhang()
