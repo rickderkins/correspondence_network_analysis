@@ -1,5 +1,6 @@
 import csv
 import os
+import re
 from datetime import datetime
 from docx import Document
 from docx.oxml import OxmlElement
@@ -7,36 +8,25 @@ from copy import deepcopy
 
 
 def erstelle_brief_anhang():
-    # 1. Abfrage des Input-Pfades über die Konsole
     print("--- Brief-Anhang Generator ---")
     input_csv = input("Bitte den Pfad zur CSV-Datei eingeben: ").strip().strip('"')
 
-    # Feste Pfade für Vorlage und Output-Ordner
     template_path = r"D:\heiBOX\Seafile\Masterarbeit_Ablage\anhang_heibox\template_appendix_letter.docx"
     output_folder = r"D:\heiBOX\Seafile\Masterarbeit_Ablage\anhang_heibox"
 
-    # Zeitstempel für den Dateinamen generieren (YYMMDD_HHMM)
     zeitstempel = datetime.now().strftime("%y%m%d_%H%M")
     output_filename = f"{zeitstempel}_Anhang_Briefe.docx"
     output_docx = os.path.join(output_folder, output_filename)
 
-    # Validierung der Pfade
-    if not os.path.exists(input_csv):
-        print(f"Fehler: Die angegebene CSV-Datei wurde nicht gefunden: {input_csv}")
+    if not os.path.exists(input_csv) or not os.path.exists(template_path):
+        print("Fehler: Dateien nicht gefunden! Bitte Pfade prüfen.")
         return
-    if not os.path.exists(template_path):
-        print(f"Fehler: Vorlage nicht gefunden unter: {template_path}")
-        return
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
 
-    # Dokument laden
     doc = Document(template_path)
 
-    # Vorlage extrahieren (Erster Absatz und erste Tabelle)
+    # Vorlage extrahieren
     template_para = doc.paragraphs[0]
     template_table = doc.tables[0]
-
     template_para_xml = deepcopy(template_para._element)
     template_table_xml = deepcopy(template_table._element)
 
@@ -48,7 +38,6 @@ def erstelle_brief_anhang():
 
     try:
         with open(input_csv, mode='r', encoding='utf-8-sig') as csvfile:
-            # Automatisches Erkennen des Trennzeichens
             sample = csvfile.read(4096)
             csvfile.seek(0)
             dialect = csv.Sniffer().sniff(sample)
@@ -58,37 +47,55 @@ def erstelle_brief_anhang():
             template_para._element.getparent().remove(template_para._element)
             template_table._element.getparent().remove(template_table._element)
 
-            brief_zaehler = 0
             for i, row in enumerate(reader, start=1):
-                # --- A: TITEL-ABSATZ ---
+                # 1. TITEL-ABSATZ einfügen
                 new_p_element = deepcopy(template_para_xml)
                 doc._element.body.append(new_p_element)
-
                 aktiver_absatz = doc.paragraphs[-1]
+
                 if "BRIEF-TITEL" in aktiver_absatz.text:
                     wert = str(row.get("BRIEF-TITEL", "")).strip()
-                    neuer_text = f"{i}. {wert}"
-                    aktiver_absatz.text = aktiver_absatz.text.replace("BRIEF-TITEL", neuer_text)
+                    wert = wert.replace('\u00A0', ' ')
+                    aktiver_absatz.text = f"{i}. {wert}"
 
-                # --- B: TABELLE ---
+                # 2. TABELLE einfügen
                 new_tbl_element = deepcopy(template_table_xml)
                 doc._element.body.append(new_tbl_element)
-
                 aktuelle_tabelle = doc.tables[-1]
+
                 for zeile in aktuelle_tabelle.rows:
                     for zelle in zeile.cells:
                         for spalte in spalten_liste:
                             if spalte in zelle.text:
                                 wert = str(row.get(spalte, "")).strip()
+                                wert = wert.replace('\u00A0', ' ')
                                 zelle.text = zelle.text.replace(spalte, wert)
 
-                # --- C: LEERZEILE ---
+                # 3. LEERZEILE einfügen
                 doc._element.body.append(OxmlElement('w:p'))
-                brief_zaehler = i
 
-        # Speichern
+        # --- BEREINIGUNG: DOPPELTE LEERZEICHEN & ZEILENABSTAND ---
+
+        # Funktion zur Leerzeichen-Bereinigung mittels Regex
+        def clean_spaces(text):
+            # Ersetzt zwei oder mehr Leerzeichen durch ein einzelnes
+            return re.sub(r' {2,}', ' ', text)
+
+        # Alle Absätze im Haupttext bearbeiten
+        for para in doc.paragraphs:
+            para.text = clean_spaces(para.text)
+            para.paragraph_format.line_spacing = 1.15
+
+        # Alle Tabellen bearbeiten
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        para.text = clean_spaces(para.text)
+                        para.paragraph_format.line_spacing = 1.15
+
         doc.save(output_docx)
-        print(f"\nErfolg! {brief_zaehler} Briefe wurden verarbeitet.")
+        print(f"\nFertig! Mehrfache Leerzeichen wurden entfernt und der Zeilenabstand auf 1,15 gesetzt.")
         print(f"Datei erstellt: {output_docx}")
 
     except Exception as e:
