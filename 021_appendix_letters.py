@@ -8,7 +8,7 @@ from copy import deepcopy
 
 
 def erstelle_brief_anhang():
-    print("--- Brief-Anhang Generator ---")
+    print("--- Brief-Anhang Generator (Reduzierte Version) ---")
     input_csv = input("Bitte den Pfad zur CSV-Datei eingeben: ").strip().strip('"')
 
     template_path = r"D:\heiBOX\Seafile\Masterarbeit_Ablage\anhang_heibox\template_appendix_letter.docx"
@@ -30,10 +30,10 @@ def erstelle_brief_anhang():
     template_para_xml = deepcopy(template_para._element)
     template_table_xml = deepcopy(template_table._element)
 
+    # Reduzierte Liste der Platzhalter
     spalten_liste = [
-        "BRIEF-TITEL", "ABS-VORNAME", "ABS-NACHNAME", "ABS-ORT",
-        "EMP-VORNAME", "EMP-NACHNAME", "EMP-ORT",
-        "DATUM", "ARCHIV", "TRANSK", "TAG-FUNK", "TAG-THEMA"
+        "BRIEF-TITEL", "ABS-ORT", "EMP-ORT",
+        "ARCHIV", "TRANSK", "TAG-FUNK", "TAG-THEMA"
     ]
 
     try:
@@ -75,18 +75,13 @@ def erstelle_brief_anhang():
                 doc._element.body.append(OxmlElement('w:p'))
 
         # --- BEREINIGUNG: DOPPELTE LEERZEICHEN & ZEILENABSTAND ---
-
-        # Funktion zur Leerzeichen-Bereinigung mittels Regex
         def clean_spaces(text):
-            # Ersetzt zwei oder mehr Leerzeichen durch ein einzelnes
             return re.sub(r' {2,}', ' ', text)
 
-        # Alle Absätze im Haupttext bearbeiten
         for para in doc.paragraphs:
             para.text = clean_spaces(para.text)
             para.paragraph_format.line_spacing = 1.15
 
-        # Alle Tabellen bearbeiten
         for table in doc.tables:
             for row in table.rows:
                 for cell in row.cells:
@@ -95,7 +90,7 @@ def erstelle_brief_anhang():
                         para.paragraph_format.line_spacing = 1.15
 
         doc.save(output_docx)
-        print(f"\nFertig! Mehrfache Leerzeichen wurden entfernt und der Zeilenabstand auf 1,15 gesetzt.")
+        print(f"\nErfolg! {i} Briefe wurden verarbeitet.")
         print(f"Datei erstellt: {output_docx}")
 
     except Exception as e:
